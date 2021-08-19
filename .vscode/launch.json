@@ -10,11 +10,12 @@
             "type": "pwa-node",
             "program": "main.ts",
             "cwd": "${workspaceFolder}",
-            "runtimeExecutable": "deno",
+            "runtimeExecutable": "/home/luis/.deno/bin/deno",
             "runtimeArgs": [
                 "run",
                 "--inspect",
-                "--allow-all"
+                "-A",
+                "${file}"
             ],
             "attachSimplePort": 9229
         }

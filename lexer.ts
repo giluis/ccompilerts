@@ -1,5 +1,7 @@
 export enum TokenKind {
         Kw_Int="Kw_Int",
+        Plus="+",
+        Minus="-",
         Identifier="Identifier",
         LeftParen="LeftParen",
         RightParen="RightParen",
@@ -14,6 +16,8 @@ export enum TokenKind {
 const MatchExpressions:[TokenKind,RegExp][]= [ 
         [ TokenKind.Kw_Int,/^int/ ],
         [ TokenKind.Kw_Int,/^=/ ],
+        [ TokenKind.Plus,/^+/ ],
+        [ TokenKind.Minus,/^-/ ],
         [ TokenKind.Kw_Return,/^return/ ],
         [ TokenKind.Identifier,/^[a-zA-Z]\w*/ ],
         [ TokenKind.LeftParen,/^\(/ ],
@@ -35,6 +39,10 @@ export class Token{
         return other.kind === this.kind && other.value === this.value;
     }
 
+    public toString(){
+        return `{\tkind:${this.kind},\tvalue:${this.value}}`;
+    }
+
     public static new(kind:TokenKind, value?: string):Token{
         switch(kind){
             case TokenKind.Kw_Int:
@@ -45,6 +53,8 @@ export class Token{
             case TokenKind.Kw_Return:
             case TokenKind.SemiColon:
             case TokenKind.Assign:
+            case TokenKind.Plus:
+            case TokenKind.Minus:
                 return new Token(kind,null);
             case TokenKind.Identifier:
             case TokenKind.Lit_Int:
@@ -53,7 +63,6 @@ export class Token{
                 return new Token(kind, value);
         }
     }
-
 }
 export default function lex(source:string):Token[]{
     const size = source.length

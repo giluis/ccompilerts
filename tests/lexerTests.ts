@@ -1,5 +1,5 @@
 import { assert } from "https://deno.land/std@0.104.0/testing/asserts.ts";
-import lex, { TokenKind, Token } from "./lexer.ts";
+import lex, { TokenKind, Token } from "../lexer.ts";
 function testLex() {
     const input = "int main(){return 2;}";
     const temp: [TokenKind, string?][] = [

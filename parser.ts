@@ -31,7 +31,7 @@ function FunctionFactory(): ParsingResult {
         }));
 }
 
-function parserFunctionFromToken(
+export function parserFunctionFromToken(
     tokenKind: TokenKind,
 ): (pointer: number, tokens: Token[]) => [number, ParsingResult] {
     return (pointer: number, tokens: Token[]) => {
@@ -102,13 +102,14 @@ class ParsingResult {
 
     define(fn: (results: ParsingResult[]) => object): ParsingResult {
         this.build = () => {
-            fn(this.nuggets);
+            const returnValue = fn(this.nuggets);
             this.nuggets = [];
+            return returnValue;
         };
         return this;
     }
 
-    build() {
+    build() : any{
         throw new Error("Build method has not been defined yet");
     }
 }
