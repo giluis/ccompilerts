@@ -4,6 +4,7 @@ export enum TokenKind {
         Minus="-",
         Identifier="Identifier",
         LeftParen="LeftParen",
+        Comma=",",
         RightParen="RightParen",
         LeftCurly="LeftCurly",
         Kw_Return="Kw_Return",
@@ -15,11 +16,13 @@ export enum TokenKind {
 
 const MatchExpressions:[TokenKind,RegExp][]= [ 
         [ TokenKind.Kw_Int,/^int/ ],
-        [ TokenKind.Kw_Int,/^=/ ],
-        [ TokenKind.Plus,/^+/ ],
-        [ TokenKind.Minus,/^-/ ],
+        [ TokenKind.Assign,/^=/ ],
+        [ TokenKind.Plus,/^\+/ ],
+        [ TokenKind.Minus,/^\-/ ],
+        [ TokenKind.Comma,/^,/ ],
         [ TokenKind.Kw_Return,/^return/ ],
         [ TokenKind.Identifier,/^[a-zA-Z]\w*/ ],
+        [ TokenKind.Identifier,/^,/ ],
         [ TokenKind.LeftParen,/^\(/ ],
         [ TokenKind.RightParen,/^\)/ ],
         [ TokenKind.LeftCurly,/^\{/ ],
@@ -55,6 +58,7 @@ export class Token{
             case TokenKind.Assign:
             case TokenKind.Plus:
             case TokenKind.Minus:
+            case TokenKind.Comma:
                 return new Token(kind,null);
             case TokenKind.Identifier:
             case TokenKind.Lit_Int:
