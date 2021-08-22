@@ -1,12 +1,14 @@
+export type TermDefinition = object | string;
+
 export default class ParsingResult {
     isFailure: boolean;
     failureMsg: string;
 
-    private constructor(isFailure: boolean, failureMsg: string = "") {
-        if (isFailure && !failureMsg)
+    private constructor(isFailure: boolean, failureMsg: string | null) {
+        if (isFailure && failureMsg === null)
             throw new Error("A failure must have a message");
         this.isFailure = isFailure;
-        this.failureMsg = failureMsg;
+        this.failureMsg = failureMsg ? failureMsg : "";
     }
 
     static and(...results: ParsingResult[]): [boolean, string] {
@@ -18,7 +20,7 @@ export default class ParsingResult {
                 msg = result.failureMsg;
             }
         }
-        return [acc, msg];
+        return [!acc, msg]; //will return if it is failure, so we need to negate it
     }
 
     static firstSuccess(...results: ParsingResult[]): ParsingResult {
@@ -32,7 +34,7 @@ export default class ParsingResult {
         return new ParsingResult(true, msg);
     }
 
-    define(o: object) {
+    define(o: TermDefinition) {
         this.build = () => o;
         return this;
     }
@@ -42,6 +44,6 @@ export default class ParsingResult {
     }
 
     static success(msg?: string) {
-        return new ParsingResult(true, msg);
+        return new ParsingResult(false, msg ? msg : null); //succes means isFailure == false
     }
 }
