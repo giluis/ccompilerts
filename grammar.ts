@@ -1,8 +1,165 @@
 import ParsingResult from "./parsingResult.ts";
-import {Token,TokenKind} from "./lexer.ts";
+import { Token, TokenKind } from "./lexer.ts";
 import { OperationPriorities } from "./operations.ts";
 
-function Statement(pointer: number, tokens: Token[]): [number, ParsingResult] {
+export function FunctionDef(
+    pointer: number,
+    tokens: Token[],
+): [number, ParsingResult] {
+    let [ptr1, r_typeReturn] = Type(pointer, tokens);
+    let [ptr2, r_funcIdent] = Identifier(ptr1,tokens);
+    let [ptr3, r_args] = Args(ptr2, tokens);
+    let [ptr4, r_leftCurly] = SingleToken(TokenKind.LeftCurly, ptr3, tokens);
+    const statements = [];
+    let statementPtr = ptr4;
+    let parsingResult;
+    while (true) {
+        let r = Statement(statementPtr, tokens);
+        statementPtr = r[0];
+        parsingResult = r[1];
+        if (parsingResult.isFailure) {
+            break;
+        } else {
+            statements.push(parsingResult);
+        }
+    }
+    const [ptr5, r_rightCurly] = SingleToken(
+        TokenKind.RightCurly,
+        statementPtr,
+        tokens,
+    );
+
+    const [isFailure, failureMsg] = ParsingResult.and(
+        r_typeReturn,
+        r_funcIdent,
+        r_args,
+        r_leftCurly,
+        ...statements,
+        r_rightCurly,
+    );
+    if (isFailure) {
+        return [pointer, ParsingResult.fail(failureMsg)];
+    } else {
+        return [
+            ptr5,
+            ParsingResult.success().define({
+                returnType: r_typeReturn.build(),
+                args: r_args.build(),
+                body: statements.map((s) => s.build()),
+            }),
+        ];
+    }
+}
+
+export function Args(
+    pointer: number,
+    tokens: Token[],
+): [number, ParsingResult] {
+    const [newPtr, r_leftParen] = SingleToken(
+        TokenKind.LeftParen,
+        pointer,
+        tokens,
+    );
+    const [newPtr2, matchingParen] = SingleToken(
+        TokenKind.RightParen,
+        newPtr,
+        tokens,
+    );
+    if (!matchingParen.isFailure)
+        //function has no arguments;
+        return [newPtr2, ParsingResult.success().define([])];
+
+    let argPtr = newPtr;
+    let argSet = [];
+    let r_rightParen;
+    while (true) {
+        let [newptr, r_arg] = Variable(argPtr, tokens);
+        let [, r_comma] = SingleToken(TokenKind.Comma, newptr, tokens);
+        if (!r_comma.isFailure) {
+            [, r_rightParen] = SingleToken(
+                TokenKind.RightParen,
+                newptr,
+                tokens,
+            );
+            if (!r_rightParen.isFailure) break;
+            else
+                return [
+                    argPtr,
+                    ParsingResult.fail(
+                        `Expected , or ) in argument list at ${newptr}, but found ${tokens[
+                            newptr
+                        ].toString()}`,
+                    ),
+                ];
+        } else argSet.push(r_arg);
+    }
+
+    const [isFailure, failureMsg] = ParsingResult.and(
+        r_leftParen,
+        ...argSet,
+        r_rightParen,
+    );
+    if (isFailure) {
+        return [pointer, ParsingResult.fail(failureMsg)];
+    } else {
+        return [
+            argPtr + 1,
+            ParsingResult.success().define({
+                args: argSet.map((r) => r.build),
+            }),
+        ];
+    }
+}
+
+export function Variable(
+    pointer: number,
+    tokens: Token[],
+): [number, ParsingResult] {
+    let [ptr1, r_type] = Type(pointer, tokens);
+    let [ptr2, r_varName] = Identifier(pointer,tokens);
+    let [isFailure, failureMsg] = ParsingResult.and(r_type, r_varName);
+    if (isFailure) return [pointer, ParsingResult.fail(failureMsg)];
+    else
+        return [
+            ptr2,
+            ParsingResult.success().define({
+                type: r_type.build(),
+                identifier: r_varName.build(),
+            }),
+        ];
+}
+
+
+export function Identifier(pointer:number, tokens:Token[]):[number,ParsingResult]{
+    let [ptr2, r_identifier] = SingleToken(TokenKind.Identifier, pointer, tokens);
+    let { isFailure, failureMsg } = r_identifier
+    if (isFailure) return [pointer, ParsingResult.fail(failureMsg)];
+    else
+        return [
+            ptr2,
+            ParsingResult.success().define(r_identifier.build().value),
+        ];
+}
+
+export function Type(
+    pointer: number,
+    tokens: Token[],
+): [number, ParsingResult] {
+    const [newptr, r_type] = SingleToken(TokenKind.Kw_Int, pointer, tokens);
+    if (r_type.isFailure) {
+        return [pointer, ParsingResult.fail(r_type.failureMsg)];
+    } else {
+        return [
+            newptr,
+            ParsingResult.success().define(r_type.build().kind),
+        ];
+    }
+}
+
+export function Statement(
+    pointer: number,
+    tokens: Token[],
+): [number, ParsingResult] {
     let [newpointer, r_returnStatement] = ReturnStatement(pointer, tokens);
     if (r_returnStatement.isFailure) return [pointer, r_returnStatement];
     return [
@@ -14,7 +171,10 @@ function Statement(pointer: number, tokens: Token[]): [number, ParsingResult] {
     ];
 }
 
-function Operand(pointer: number, tokens: Token[]): [number, ParsingResult] {
+export function Operand(
+    pointer: number,
+    tokens: Token[],
+): [number, ParsingResult] {
     const [, r_operand] = SingleToken(TokenKind.Lit_Int, pointer, tokens);
     const result = ParsingResult.firstSuccess(r_operand);
     if (!result.isFailure) {
@@ -29,18 +189,23 @@ function Operand(pointer: number, tokens: Token[]): [number, ParsingResult] {
     }
 }
 
-function compareParsingResults(first:ParsingResult,second:ParsingResult){
+export function compareParsingResults(
+    first: ParsingResult,
+    second: ParsingResult,
+) {
     let firstToken = first.build();
     let secondToken = second.build();
-    return compareOperations(firstToken,secondToken);
+    return compareOperations(firstToken, secondToken);
 }
 
-
-function compareOperations({kind:first}:Token, {kind:second}: Token):number{
-    return OperationPriorities[second]  - OperationPriorities[first];
+export function compareOperations(
+    { kind: first }: Token,
+    { kind: second }: Token,
+): number {
+    return OperationPriorities[second] - OperationPriorities[first];
 }
 
-function BinaryOperation(
+export function BinaryOperation(
     pointer: number,
     tokens: Token[],
 ): [number, ParsingResult] {
@@ -55,36 +220,33 @@ function BinaryOperation(
         secondOperand,
     );
 
-    const [doesOperationEnd,] = ParsingResult.and(
-        nextOperation
-    )
+    const [doesOperationEnd] = ParsingResult.and(nextOperation);
 
-    if(isOperation && doesOperationEnd){
-        return [pointer + 3 , ParsingResult.success().define({
-            first: firstOperand.build(),
-            second: secondOperand.build(),
-            operation: currentOperation.build(),
-        })]
+    if (isOperation && doesOperationEnd) {
+        return [
+            pointer + 3,
+            ParsingResult.success().define({
+                first: firstOperand.build(),
+                second: secondOperand.build(),
+                operation: currentOperation.build(),
+            }),
+        ];
     }
 
-    
-
     if (isOperation && !doesOperationEnd) {
-        const comparison = compareParsingResults(currentOperation, nextOperation);
+        const comparison = compareParsingResults(
+            currentOperation,
+            nextOperation,
+        );
         if (comparison > 1) {
             // currentOperation has higher priority than nextOperation
-            const nextOperationBuilt = nextOperation.build()
+            const nextOperationBuilt = nextOperation.build();
             nextOperationBuilt.left = {
                 operation: currentOperation.build(),
-                first:firstOperand.build(),
+                first: firstOperand.build(),
                 second: secondOperand.build(),
-            }
-            return [
-                ptr5,
-                ParsingResult.success().define(
-                    nextOperationBuilt
-                ),
-            ];
+            };
+            return [ptr5, ParsingResult.success().define(nextOperationBuilt)];
         } else {
             //currentOperation has lowerpriority than nextOperation
             return [
@@ -106,7 +268,10 @@ function BinaryOperation(
     }
 }
 
-function Operator(pointer: number, tokens: Token[]): [number, ParsingResult] {
+export function Operator(
+    pointer: number,
+    tokens: Token[],
+): [number, ParsingResult] {
     let [, r_plusLiteral] = SingleToken(TokenKind.Plus, pointer, tokens);
     let [, r_minusLiteral] = SingleToken(TokenKind.Minus, pointer, tokens);
 
@@ -126,7 +291,7 @@ function Operator(pointer: number, tokens: Token[]): [number, ParsingResult] {
     }
 }
 
-function ReturnStatement(
+export function ReturnStatement(
     pointer: number,
     tokens: Token[],
 ): [number, ParsingResult] {
@@ -160,7 +325,7 @@ function ReturnStatement(
     ];
 }
 
-function SingleToken(
+export function SingleToken(
     tokenKind: TokenKind,
     pointer: number,
     tokens: Token[],
