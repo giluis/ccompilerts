@@ -21,6 +21,42 @@ function testLex() {
     });
 }
 
+function testLexWithArgs(){
+    const input = "somefunc(arg1,arg2,arg3)";
+    const temp: [TokenKind, string?][] = [
+        [TokenKind.Identifier, "somefunc"],
+        [TokenKind.LeftParen],
+        [TokenKind.Identifier,'arg1'],
+        [TokenKind.Comma],
+        [TokenKind.Identifier,'arg1'],
+        [TokenKind.Comma],
+        [TokenKind.Identifier,'arg1'],
+        [TokenKind.RightParen],
+    ];
+    const expected: Token[] = temp.map((e) => Token.new(e[0], e[1]));
+    const result: Token[] = lex(input);
+    assert(expected.length === result.length);
+    expected.forEach((e, i) => {
+        assert(e.equals(result[i]));
+    });
+}
+
+testLexWithArgs();
+function testLex1() {
+    const input = "a = 0";
+    const temp: [TokenKind, string?][] = [
+        [TokenKind.Identifier, "a"],
+        [TokenKind.Assign],
+        [TokenKind.Lit_Int,'0'],
+    ];
+    const expected: Token[] = temp.map((e) => Token.new(e[0], e[1]));
+    const result: Token[] = lex(input);
+    assert(expected.length === result.length);
+    expected.forEach((e, i) => {
+        assert(e.equals(result[i]));
+    });
+}
+
 async function testFromTestCases() {
     const pathTo = "./testcases/stage_1";
     const pathToInvalid = pathTo + "/invalid";
@@ -43,6 +79,4 @@ async function testFromTestCases() {
     }
 }
 
-testFromTestCases();
-
-testLex();
+testLex1();
