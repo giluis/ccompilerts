@@ -5,18 +5,12 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Deno: Run",
-            "request": "launch",
+            "name": "Deno",
             "type": "pwa-node",
-            "program": "main.ts",
+            "request": "launch",
             "cwd": "${workspaceFolder}",
-            "runtimeExecutable": "/home/luis/.deno/bin/deno",
-            "runtimeArgs": [
-                "run",
-                "--inspect",
-                "-A",
-                "${file}"
-            ],
+            "runtimeExecutable": "deno",
+            "runtimeArgs": ["run", "--inspect-brk", "-A", "${file}"],
             "attachSimplePort": 9229
         }
     ]
