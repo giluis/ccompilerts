@@ -7,9 +7,12 @@ export function FunctionDef(
     tokens: Token[],
 ): [number, ParsingResult] {
     let [ptr1, r_typeReturn] = Type(pointer, tokens);
-    let [ptr2, r_funcIdent] = Identifier(ptr1,tokens);
+    let [ptr2, r_funcIdent] = Identifier(ptr1, tokens);
     let [ptr3, r_args] = Args(ptr2, tokens);
     let [ptr4, r_leftCurly] = SingleToken(TokenKind.LeftCurly, ptr3, tokens);
+    let [isFailure1, failureMsg1] = ParsingResult.and(r_typeReturn,r_funcIdent,r_args,r_leftCurly);
+    if(isFailure1)
+        return [pointer, ParsingResult.fail(failureMsg1) ];
     const statements = [];
     let statementPtr = ptr4;
     let parsingResult;
@@ -44,6 +47,7 @@ export function FunctionDef(
             ptr5,
             ParsingResult.success().define({
                 returnType: r_typeReturn.build(),
+                identifier: r_funcIdent.build(),
                 args: r_args.build(),
                 body: statements.map((s) => s.build()),
             }),
@@ -74,15 +78,21 @@ export function Args(
     let r_rightParen;
     while (true) {
         let [newptr, r_arg] = Variable(argPtr, tokens);
-        let [, r_comma] = SingleToken(TokenKind.Comma, newptr, tokens);
-        if (!r_comma.isFailure) {
-            [, r_rightParen] = SingleToken(
+        let [newptr2, r_comma] = SingleToken(TokenKind.Comma, newptr, tokens);
+        if (r_comma.isFailure) {
+            let r_paren = SingleToken(
                 TokenKind.RightParen,
                 newptr,
                 tokens,
             );
-            if (!r_rightParen.isFailure) break;
-            else
+            let finalPtr = r_paren[0]
+            r_rightParen = r_paren[1]
+            if (!r_rightParen.isFailure) {
+
+                argSet.push(r_arg);
+                argPtr = finalPtr;
+                break;
+            } else
                 return [
                     argPtr,
                     ParsingResult.fail(
@@ -92,6 +102,7 @@ export function Args(
                     ),
                 ];
         } else argSet.push(r_arg);
+        argPtr = newptr2;
     }
 
     const [isFailure, failureMsg] = ParsingResult.and(
@@ -103,10 +114,8 @@ export function Args(
         return [pointer, ParsingResult.fail(failureMsg)];
     } else {
         return [
-            argPtr + 1,
-            ParsingResult.success().define({
-                args: argSet.map((r) => r.build),
-            }),
+            argPtr,
+            ParsingResult.success().define(argSet.map((r) => r.build())),
         ];
     }
 }
@@ -116,7 +125,7 @@ export function Variable(
     tokens: Token[],
 ): [number, ParsingResult] {
     let [ptr1, r_type] = Type(pointer, tokens);
-    let [ptr2, r_varName] = Identifier(pointer,tokens);
+    let [ptr2, r_varName] = Identifier(ptr1, tokens);
     let [isFailure, failureMsg] = ParsingResult.and(r_type, r_varName);
     if (isFailure) return [pointer, ParsingResult.fail(failureMsg)];
     else
@@ -129,10 +138,16 @@ export function Variable(
         ];
 }
 
-
-export function Identifier(pointer:number, tokens:Token[]):[number,ParsingResult]{
-    let [ptr2, r_identifier] = SingleToken(TokenKind.Identifier, pointer, tokens);
-    let { isFailure, failureMsg } = r_identifier
+export function Identifier(
+    pointer: number,
+    tokens: Token[],
+): [number, ParsingResult] {
+    let [ptr2, r_identifier] = SingleToken(
+        TokenKind.Identifier,
+        pointer,
+        tokens,
+    );
+    let { isFailure, failureMsg } = r_identifier;
     if (isFailure) return [pointer, ParsingResult.fail(failureMsg)];
     else
         return [
@@ -149,10 +164,7 @@ export function Type(
     if (r_type.isFailure) {
         return [pointer, ParsingResult.fail(r_type.failureMsg)];
     } else {
-        return [
-            newptr,
-            ParsingResult.success().define(r_type.build().kind),
-        ];
+        return [newptr, ParsingResult.success().define(r_type.build())];
     }
 }
 
@@ -164,10 +176,7 @@ export function Statement(
     if (r_returnStatement.isFailure) return [pointer, r_returnStatement];
     return [
         newpointer,
-        ParsingResult.success().define({
-            type: "return",
-            returnValue: r_returnStatement.build(),
-        }),
+        ParsingResult.success().define(r_returnStatement.build()),
     ];
 }
 
@@ -291,6 +300,14 @@ export function Operator(
     }
 }
 
+
+export function Value(pointer:number, tokens:Token[]):[number,ParsingResult]{
+    let [newpointer, r_value] = SingleToken(TokenKind.Lit_Int,pointer,tokens);
+    if(r_value.isFailure)
+        return [pointer, ParsingResult.fail(r_value.failureMsg)];
+    else 
+        return [newpointer,ParsingResult.success().define(r_value.build())];
+}
 export function ReturnStatement(
     pointer: number,
     tokens: Token[],
@@ -300,11 +317,7 @@ export function ReturnStatement(
         pointer,
         tokens,
     );
-    let [newpointer2, r_returnValue] = SingleToken(
-        TokenKind.Lit_Int,
-        newpointer,
-        tokens,
-    );
+    let [newpointer2, r_returnValue] = Value(newpointer,tokens);
     let [newpointer3, r_semicolon] = SingleToken(
         TokenKind.SemiColon,
         newpointer2,
@@ -319,8 +332,8 @@ export function ReturnStatement(
     return [
         newpointer3,
         ParsingResult.success().define({
+            statementType:TokenKind.Kw_Return,
             returnValue: r_returnValue.build(),
-            semi: r_semicolon.build(),
         }),
     ];
 }
@@ -331,17 +344,14 @@ export function SingleToken(
     tokens: Token[],
 ): [number, ParsingResult] {
     let currentToken = tokens[pointer];
+    let returnValue = currentToken.value
+        ? { kind: currentToken.kind, value: currentToken.value }
+        : currentToken.kind;
     if (currentToken.kind === tokenKind)
-        return [
-            pointer + 1,
-            ParsingResult.success().define({
-                kind: currentToken.kind,
-                value: currentToken.value,
-            }),
-        ];
+        return [pointer + 1, ParsingResult.success().define(returnValue)];
     else
         return [
-            -1,
+            pointer,
             ParsingResult.fail(
                 `Expected ${tokenKind} at position ${pointer}, but got ${currentToken.toString()}`,
             ),
