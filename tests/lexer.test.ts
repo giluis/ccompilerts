@@ -1,5 +1,40 @@
-import { assert } from "https://deno.land/std@0.104.0/testing/asserts.ts";
-import lex, { TokenKind, Token } from "../lexer.ts";
+import { assert, assertEquals } from "../deps.ts";
+import lex, { TokenKind, Token } from "../src/lexer.ts";
+
+testLexBinaryComp();
+testLexLogicalNeg();
+testLexNegation();
+function testLexBinaryComp() {
+    const input = "~2";
+    const temp: [TokenKind, string?][] = [
+        [TokenKind.BitWiseComplement],
+        [TokenKind.Lit_Int, "2"],
+    ];
+    const expected: Token[] = temp.map((e) => Token.new(e[0], e[1]));
+    assertEquals(expected, lex(input));
+}
+
+function testLexLogicalNeg() {
+    const input = "!0";
+    const temp: [TokenKind, string?][] = [
+        [TokenKind.LogicalNegate],
+        [TokenKind.Lit_Int, "0"],
+    ];
+    const expected: Token[] = temp.map((e) => Token.new(e[0], e[1]));
+    assertEquals(expected, lex(input));
+}
+
+function testLexNegation() {
+    const input = "1-4";
+    const temp: [TokenKind, string?][] = [
+        [TokenKind.Lit_Int, "1"],
+        [TokenKind.Negate],
+        [TokenKind.Lit_Int, "4"],
+    ];
+    const expected: Token[] = temp.map((e) => Token.new(e[0], e[1]));
+    assertEquals(expected, lex(input));
+}
+
 function testLex() {
     const input = "int main(){return 2;}";
     const temp: [TokenKind, string?][] = [
@@ -21,16 +56,16 @@ function testLex() {
     });
 }
 
-function testLexWithArgs(){
+function testLexWithArgs() {
     const input = "somefunc(arg1,arg2,arg3)";
     const temp: [TokenKind, string?][] = [
         [TokenKind.Identifier, "somefunc"],
         [TokenKind.LeftParen],
-        [TokenKind.Identifier,'arg1'],
+        [TokenKind.Identifier, "arg1"],
         [TokenKind.Comma],
-        [TokenKind.Identifier,'arg1'],
+        [TokenKind.Identifier, "arg1"],
         [TokenKind.Comma],
-        [TokenKind.Identifier,'arg1'],
+        [TokenKind.Identifier, "arg1"],
         [TokenKind.RightParen],
     ];
     const expected: Token[] = temp.map((e) => Token.new(e[0], e[1]));
@@ -47,7 +82,7 @@ function testLex1() {
     const temp: [TokenKind, string?][] = [
         [TokenKind.Identifier, "a"],
         [TokenKind.Assign],
-        [TokenKind.Lit_Int,'0'],
+        [TokenKind.Lit_Int, "0"],
     ];
     const expected: Token[] = temp.map((e) => Token.new(e[0], e[1]));
     const result: Token[] = lex(input);

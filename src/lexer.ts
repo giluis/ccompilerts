@@ -1,7 +1,9 @@
 export enum TokenKind {
         Kw_Int="Kw_Int",
         Plus="+",
-        Minus="-",
+        LogicalNegate="!",
+        BitWiseComplement="~",
+        Negate="-",
         Identifier="Identifier",
         LeftParen="LeftParen",
         Comma=",",
@@ -18,7 +20,9 @@ const MatchExpressions:[TokenKind,RegExp][]= [
         [ TokenKind.Kw_Int,/^int/ ],
         [ TokenKind.Assign,/^=/ ],
         [ TokenKind.Plus,/^\+/ ],
-        [ TokenKind.Minus,/^\-/ ],
+        [ TokenKind.LogicalNegate,/^!/ ],
+        [ TokenKind.BitWiseComplement,/^~/ ],
+        [ TokenKind.Negate,/^-/ ],
         [ TokenKind.Comma,/^,/ ],
         [ TokenKind.Kw_Return,/^return/ ],
         [ TokenKind.Identifier,/^[a-zA-Z]\w*/ ],
@@ -57,7 +61,9 @@ export class Token{
             case TokenKind.SemiColon:
             case TokenKind.Assign:
             case TokenKind.Plus:
-            case TokenKind.Minus:
+            case TokenKind.Negate:
+            case TokenKind.LogicalNegate:
+            case TokenKind.BitWiseComplement:
             case TokenKind.Comma:
                 return new Token(kind,null);
             case TokenKind.Identifier:
