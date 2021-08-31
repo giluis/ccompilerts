@@ -21,6 +21,25 @@ const o = {attr1: "something", a<t>tr2: "something else"}
 2b. Press dia
 
 
+```typescript
+
+export type TExpression = {
+    left: TExpression,
+    operator: "-" | "+",
+    right :TExpression,
+} | TTerm
+
+export type TTerm  = {
+    left: TTerm ,
+    operator: "*" | "/",
+    right: TTerm
+} | TFactor
+
+export type TFactor = Value | TUnaryOperation|TExpression;
+
+```
+
+
 
 **Expected behavior**
 After 2a, expected is:

@@ -53,20 +53,45 @@ export type TUnvaluedSingleSymbol =
 
 export type TValuedSingleSymbol = TIdentifier | TValue;
 
+
 /**
  */
+
 export type TStatement = TReturnStatement;
+
 
 export type TReturnStatement = {
     statementType: TokenKind.Kw_Return;
     returnValue: TExpression;
 };
 
-export type TExpression = TUnaryOperation | TValue
+export type TPlus = "+";
+export type TMinus = "-";
+export type TLowerPriorityOperator = TPlus | TMinus;
+export type TExpression = {
+    left: TExpression,
+    operator: TLowerPriorityOperator,
+    right :TExpression,
+} | TTerm
+
+
+
+export type TMult = "*"
+export type TDiv = "/"
+export type THigherPriorityOperator = TMult | TDiv;
+export type TTerm  = {
+    left: TTerm ,
+    operator: THigherPriorityOperator,
+    right: TTerm
+} | TFactor
+
+export type TFactor =  {
+    factor: TValue | TUnaryOperation|TExpression 
+}
 
 export type TUnaryOperation = {
     operator: TUnaryOperator,
-    operand: TExpression,
+    operand: TFactor,
 } 
 
 export type TUnaryOperator = TLogicalNegate | TNegate | TBitWiseCompl

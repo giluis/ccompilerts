@@ -3,10 +3,14 @@ import { Token, TokenKind } from "./lexer.ts";
 import {
     TArg,
     TExpression,
+    TFactor,
     TFunction,
+    THigherPriorityOperator,
     TIdentifier,
+    TLowerPriorityOperator,
     TReturnStatement,
     TStatement,
+    TTerm,
     TType,
     TUnaryOperation,
     TUnaryOperator,
@@ -18,11 +22,114 @@ export function Expression(
     pointer: number,
     tokens: Token[],
 ): [number, ParsingResult<TExpression>] {
-    const [ptr1, r_value] = Value(pointer, tokens);
-    if (r_value.isFailure)
-        return UnaryOperation(pointer, tokens);
-    return [ptr1, ParsingResult.success<TExpression>().define(r_value.build())];
+    let [i, r_term] = Term(pointer, tokens);
+    if (r_term.isFailure)
+        return [pointer, ParsingResult.fail(r_term.failureMsg)];
+    let [j, r_oper] = LowerPriorityOperator(i, tokens);
+    if (r_oper.isFailure) return [i, r_term];
+    let [ptr3, r_exp] = Expression(j, tokens);
+    if (r_exp.isFailure) return [j, r_exp];
+    return [
+        ptr3,
+        ParsingResult.success<TExpression>().define({
+            left: r_term.build(),
+            operator: r_oper.build(),
+            right: r_exp.build(),
+        }),
+    ];
 }
+
+export function LowerPriorityOperator(
+    pointer: number,
+    tokens: Token[],
+): [number, ParsingResult<TLowerPriorityOperator>] {
+    if(pointer >= tokens.length)
+        return [ pointer,  ParsingResult.fail("piotner cannot be larger than array length") ]
+    const [, minusResult] = SingleToken(TokenKind.Negate, pointer, tokens);
+    if (minusResult.isFailure) {
+        const [, plusResult] = SingleToken(TokenKind.Plus, pointer, tokens);
+        if (plusResult.isFailure)
+            return [pointer, ParsingResult.fail(plusResult.failureMsg)];
+        return [
+            pointer + 1,
+            ParsingResult.success<TLowerPriorityOperator>().define("+"),
+        ];
+    }
+    return [
+        pointer + 1,
+        ParsingResult.success<TLowerPriorityOperator>().define("-"),
+    ];
+}
+
+export function Term(
+    pointer: number,
+    tokens: Token[],
+): [number, ParsingResult<TTerm>] {
+    let [i, r_factor] = Factor(pointer, tokens);
+    if (r_factor.isFailure)
+        return [pointer, ParsingResult.fail(r_factor.failureMsg)];
+    let [j, r_oper] = HigherPriorityOperator(i, tokens);
+    if (r_oper.isFailure) return [i, r_factor];
+    let [ptr3, r_term] = Term(j, tokens);
+    if (r_term.isFailure) return [j, r_term];
+    return [
+        ptr3,
+        ParsingResult.success<TTerm>().define({
+            left: r_factor.build(),
+            operator: r_oper.build(),
+            right: r_term.build(),
+        }),
+    ];
+}
+
+
+
+export function HigherPriorityOperator(
+    pointer: number,
+    tokens: Token[],
+): [number, ParsingResult<THigherPriorityOperator>] {
+    if(pointer >= tokens.length)
+        return [pointer, ParsingResult.fail("pointer cannot be larger than array") ]
+    const [, multResult] = SingleToken(TokenKind.Mult, pointer, tokens);
+    if (multResult.isFailure) {
+        const [, divResult] = SingleToken(TokenKind.Div, pointer, tokens);
+        if (divResult.isFailure)
+            return [pointer, ParsingResult.fail(divResult.failureMsg)];
+        return [
+            pointer + 1,
+            ParsingResult.success<THigherPriorityOperator>().define("/"),
+        ];
+    }
+    return [
+        pointer + 1,
+        ParsingResult.success<THigherPriorityOperator>().define("*"),
+    ];
+}
+
+export function Factor(
+    pointer: number,
+    tokens: Token[],
+): [number, ParsingResult<TFactor>] {
+    let [ptr1,r_leftParen] = SingleToken(TokenKind.LeftParen,pointer,tokens);
+    if(!r_leftParen.isFailure){
+        let [ptr2, r_exp] = Expression(ptr1,tokens);
+        let [ptr3, r_rparen] = SingleToken(TokenKind.RightParen,ptr2,tokens);
+        let [isFailure,failureMsg] = ParsingResult.and(r_exp,r_leftParen);
+        if(isFailure)
+            return [ ptr3 ,ParsingResult.fail(failureMsg) ]
+        return  [ptr3,ParsingResult.success<TFactor>().define({factor: r_exp.build()})];
+    }
+
+    let [ptrUnOp, r_unOp] = UnaryOperation(pointer,tokens);
+    if(!r_unOp.isFailure)
+        return [ptrUnOp,ParsingResult.success<TFactor>().define({factor: r_unOp.build()})]
+    
+    let [ptrValue, r_value] = Value( pointer, tokens);
+    if(!r_value.isFailure)
+        return [ptrValue, ParsingResult.success<TFactor>().define({factor: r_value.build()})];
+
+    return [pointer,  ParsingResult.fail(`Expected a factor at ${pointer} but got ${tokens[pointer]}`) ];
+    }
 
 export function UnaryOperation(
     pointer: number,
@@ -40,11 +147,14 @@ export function UnaryOperation(
         ];
     }
 
-    let [expPtr,r_exp] = Expression(ptr2, tokens);
-    return [ expPtr, ParsingResult.success<TUnaryOperation>().define({
-        operator: r_unaryOperator.build(),
-        operand: r_exp.build(),
-    }) ]
+    let [expPtr, r_exp] = Expression(ptr2, tokens);
+    return [
+        expPtr,
+        ParsingResult.success<TUnaryOperation>().define({
+            operator: r_unaryOperator.build(),
+            operand: {factor: r_exp.build()}
+        }),
+    ];
 }
 
 export function UnaryOperator(
@@ -395,7 +505,7 @@ export function Value(
 ): [number, ParsingResult<TValue>] {
     let [newpointer, r_value] = SingleToken(TokenKind.Lit_Int, pointer, tokens);
     if (r_value.isFailure)
-        return [ pointer,ParsingResult.fail<TValue>(r_value.failureMsg) ]
+        return [pointer, ParsingResult.fail<TValue>(r_value.failureMsg)];
 
     let { value } = r_value.build();
     if (!value)
@@ -445,6 +555,8 @@ export function SingleToken(
     pointer: number,
     tokens: Token[],
 ): [number, ParsingResult<Token>] {
+    if(pointer >= tokens.length )
+        return [ pointer,  ParsingResult.fail("piotner cannot be larger than array length") ]
     let currentToken = tokens[pointer];
     if (currentToken.kind === tokenKind)
         return [
