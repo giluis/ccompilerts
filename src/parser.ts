@@ -3,7 +3,7 @@ import { FunctionDef, Statement } from "./grammar.ts";
 import { Token, TokenKind } from "./lexer.ts";
 import ParsingResult, { TermDefinition } from "./parsingResult.ts";
 
-export function parse(tokens: Token[]): [number, ParsingResult<TProgram>] {
+export default function parse(tokens: Token[]): [number, ParsingResult<TProgram>] {
     let r_fnDef;
     let pointer = 0;
     let fnResults: ParsingResult<TFunction>[] = [];

@@ -8,6 +8,9 @@ import {
     isBitWiseCompl,
     isLogicalNegate,
     isNegate,
+    isBinOp,
+    TUnaryOperator,
+TBinaryOperator,
 } from "./ebnf.ts";
 
 export type InstSize = "b" | "w" | "l";
@@ -19,45 +22,67 @@ export class Assembly {
     constructor() {
         this.instructions = [];
     }
+    
+
+    add(
+        size: InstSize,
+        left: Register | TValue,
+        right: Register | TValue,
+    ): this {
+        let leftOperand = isValue(left) ? left : `%${left}`;
+        let rightOperand = isValue(right) ? right : `%${right}`;
+        return this.append(`add${size} ${leftOperand},${rightOperand}`);
+    }
+
+
+
+    push(size: InstSize, operand: Register | TValue): this {
+        return this.append(`push${size} %${operand}`);
+    }
+
+    pop(size: InstSize, operand: Register | TValue): this {
+        return this.append(`pop${size} %${operand}`);
+    }
+
+    unOp(unOperator: TUnaryOperator): this {
+        return isLogicalNegate(unOperator)
+            ? this.logneg("l", "eax")
+            : isNegate(unOperator)
+            ? this.neg("eax")
+            : this.bitcompl("eax");
+    }
 
     mov(size: InstSize, value: TValue, register: Register): this {
-        this.push(`mov${size} $${value}, %${register}`);
-        return this;
+        return this.append(`mov${size} $${value}, %${register}`);
     }
 
     neg(register: Register): this {
-        this.push(`neg %${register}`);
-        return this;
+        return this.append(`neg %${register}`);
     }
 
     bitcompl(register: Register): this {
-        this.push(`not %${register}`);
-        return this;
+        return this.append(`not %${register}`);
     }
 
     cmp(size: InstSize, value: TValue, register: Register): this {
-        this.push(`cmp${size} $${value}, %${register}`);
-        return this;
+        return this.append(`cmp${size} $${value}, %${register}`);
     }
 
     sete(register: Register): this {
-        this.push(`sete %${register}`);
+        this.append(`sete %${register}`);
         return this;
     }
 
     xor(reg1: Register, reg2: Register): this {
-        this.push(`xor %${reg1}, %${reg2}`);
-        return this;
+        return this.append(`xor %${reg1}, %${reg2}`);
     }
 
     logneg(size: InstSize, register: Register): this {
-        this.cmp(size, 0, "eax").xor("eax", "eax").sete("al");
-        return this;
+        return this.cmp(size, 0, "eax").xor("eax", "eax").sete("al");
     }
 
     ret(): this {
-        this.instructions.push(`ret`);
-        return this;
+        return this.append(`ret`);
     }
 
     build(tidy: boolean = true): string {
@@ -75,8 +100,10 @@ export class Assembly {
             : `\n\t${inst}`;
     }
 
-    push(inst: string): this {
-        this.instructions.push(inst);
+    append(instOrAssembly: string | Assembly): this {
+        if (typeof instOrAssembly === "string")
+            this.instructions.push(instOrAssembly);
+        else this.instructions.push(...instOrAssembly.instructions);
         return this;
     }
 
@@ -91,28 +118,56 @@ export class Assembly {
     }
 }
 
-export function generateAsm(program: TProgram): string {
+export default function generateAsm(program: TProgram): string {
     const builder = new Assembly();
+    builder.prepend(".text");
     for (const fn of program) {
-        builder.prepend(`.global ${fn.identifier}`);
+        builder.prepend(`.type ${fn.identifier}, @function`);
+        builder.prepend(`.globl ${fn.identifier}`);
         builder.compose(defineFunction(fn));
     }
     return builder.build();
 }
 
 export function defineExpression(exp: TExpression): Assembly {
+    let recur;
     if (isValue(exp)) return new Assembly().mov("l", exp, "eax");
     else {
-        const { operand, operator } = exp;
-        let recur = defineExpression(operand);
-        return isLogicalNegate(operator)
-            ? recur.logneg("l", "eax")
-            : isNegate(operator)
-            ? recur.neg("eax")
-            : recur.bitcompl("eax");
+        switch (exp.opType) {
+            case "unary_operation":
+                let { operand, operator: unOperator } = exp;
+                let recur = defineExpression(operand);
+                return recur.unOp(unOperator);
+            case "binary_operation":
+                let { left, operator: binOperator, right } = exp;
+                let result = defineExpression(left);
+
+                result
+                    .push("l", "eax")
+                    .append(defineExpression(right))
+                    .pop("l", "ecx")
+                    .defineBinOperation(binOperator);
+                return result;
+        }
     }
 }
 
+export function defineBinOperation(op: TBinaryOperator):Assembly{
+    let result = new Assembly();
+    switch(op){
+        case "*": 
+                break;
+        case "+": 
+                result.append()
+                break;
+        case "-": 
+                
+                break;
+        case "/": 
+                
+                break;
+    }
+}
 //we need to initialize it first if we're going to support other kinds of statements.
 export function defineFunction(fn: TFunction): Assembly {
     for (const s of fn.body) {

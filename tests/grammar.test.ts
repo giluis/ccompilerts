@@ -19,17 +19,17 @@ import { TExpression, TProgram } from "../src/ebnf.ts";
 testPrecedence()
 
 function testPrecedence(){
-    const tokens = lex("2* (1 + 1)");
+    const tokens = lex("(2 - 1) * (2 + 1) - (1 * 1)");
     const expected:TExpression = {
-        left:{ factor: "1" },
+        left: "1",
         operator: "+",
         right: {
-            left: {factor: "1"},
+            left:  "1",
             operator: "-",
             right: {
-                left: {factor: "2"},
+                left:  "2",
                 operator: "*",
-                right: {factor: "3"},
+                right:  "3",
             },
         },
     }

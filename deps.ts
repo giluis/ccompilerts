@@ -1,4 +1,4 @@
-import { assert,equal,assertEquals } from "https://deno.land/std@0.104.0/testing/asserts.ts";
+import { assert,equal,assertEquals } from "https://deno.land/std@0.106.0/testing/asserts.ts";
 
 export {
     equal,
