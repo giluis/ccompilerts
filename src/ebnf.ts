@@ -1,4 +1,4 @@
-import { TokenKind } from "./lexer.ts";
+import { TokenKind } from "./lexer";
 
 export function isReturnStatement (o: any): o is TReturnStatement {
     return o?.statementType === TokenKind.Kw_Return && o.returnValue;
@@ -36,7 +36,7 @@ export function isLogicalNegate (o: any): o is TLogicalNegate {
 }
 
 export function isNegate (o: any): o is TNegate {
-    return o === TokenKind.Negate
+    return o === TokenKind.Minus
 }
 
 export function isBitWiseCompl (o: any): o is TBitWiseCompl {
@@ -44,7 +44,7 @@ export function isBitWiseCompl (o: any): o is TBitWiseCompl {
 }
 
 
-export type TNegate = TokenKind.Negate;
+export type TNegate = TokenKind.Minus;
 export type TBitWiseCompl = TokenKind.BitWiseComplement;
 export type TLogicalNegate = TokenKind.LogicalNegate;
 
@@ -58,9 +58,8 @@ export type TFunction = {
 };
 
 
-export type TArg = TVarDeclaration;
 
-export type TVarDeclaration = {
+export type TArg = {
     type: TType;
     identifier: TIdentifier;
 };

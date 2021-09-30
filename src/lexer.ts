@@ -5,7 +5,7 @@ export enum TokenKind {
         Div="/",
         LogicalNegate="!",
         BitWiseComplement="~",
-        Negate="-",
+        Minus="-",
         Identifier="Identifier",
         LeftParen="LeftParen",
         Comma=",",
@@ -26,7 +26,7 @@ const MatchExpressions:[TokenKind,RegExp][]= [
         [ TokenKind.Div,/^\// ],
         [ TokenKind.LogicalNegate,/^!/ ],
         [ TokenKind.BitWiseComplement,/^~/ ],
-        [ TokenKind.Negate,/^-/ ],
+        [ TokenKind.Minus,/^-/ ],
         [ TokenKind.Comma,/^,/ ],
         [ TokenKind.Kw_Return,/^return/ ],
         [ TokenKind.Identifier,/^[a-zA-Z]\w*/ ],
@@ -67,7 +67,7 @@ export class Token{
             case TokenKind.Plus:
             case TokenKind.Mult:
             case TokenKind.Div:
-            case TokenKind.Negate:
+            case TokenKind.Minus:
             case TokenKind.LogicalNegate:
             case TokenKind.BitWiseComplement:
             case TokenKind.Comma:

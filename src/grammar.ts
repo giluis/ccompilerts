@@ -1,13 +1,17 @@
 import ParsingResult from "./parsingResult";
 import { Token, TokenKind } from "./lexer";
+import TokenIterator,{defuncFrom} from "./tokenIterator"
 import {
   TArg,
+  TBitWiseCompl,
   TDiv,
   TExpression,
   TFunction,
   TIdentifier,
+  TLogicalNegate,
   TMinus,
   TMult,
+  TNegate,
   TPlus,
   TReturnStatement,
   TStatement,
@@ -15,410 +19,174 @@ import {
   TUnaryOperation,
   TUnaryOperator,
   TValue,
-  TVarDeclaration,
 } from "./ebnf";
 
+export type Defunc<T> = (iter: TokenIterator) => ParsingResult<T>;
+
 export function BinaryExpression(
-  pointer: number,
-  tokens: Token[]
-): [number, ParsingResult<TExpression>] {
-  let [i, r_term] = Term(pointer, tokens);
-  if (r_term.isFailure) return [pointer, ParsingResult.fail(r_term.failureMsg)];
-  let [j, r_oper] = LowerPriorityOperator(i, tokens);
-  if (r_oper.isFailure) return [i, r_term];
-  let [ptr3, r_exp] = BinaryExpression(j, tokens);
-  if (r_exp.isFailure) return [j, r_exp];
-  return [
-    ptr3,
-    ParsingResult.success<TExpression>().define({
+  iter: TokenIterator
+): ParsingResult<TExpression> {
+  return iter
+    .chain(Term, LowerPriorityOperator, BinaryExpression)
+    .release(([r_term, r_oper, r_exp]) => ({
       opType: "binary_operation",
       left: r_term.build(),
       operator: r_oper.build(),
       right: r_exp.build(),
-    }),
-  ];
+    }));
 }
 
 export function BinaryExpression1(
   iter: TokenIterator
 ): ParsingResult<TExpression> {
-  let [r_term, r_oper, r_exp] = iter.expect(
-    Term,
-    LowerPriorityOperator,
-    BinaryExpression
-  );
-
-  return ParsingResult.success<TExpression>(
-{
-    opType: "binary_operation",
-    left: r_term.build(),
-    operator: r_oper.build(),
-    right: r_exp.build(),
-  })
+  return iter
+    .chain(Term, LowerPriorityOperator, BinaryExpression)
+    .release(([r_term, r_oper, r_exp]) => ({
+      opType: "binary_operation",
+      left: r_term.build(),
+      operator: r_oper.build(),
+      right: r_exp.build(),
+    }));
 }
 
-function expect(iter:TokenIterator, ...funcs) {
-  for (const f of funcs) {
-    let r = f(iter);
-    if
-  }
-}
 
-class TokenIterator {
-  tokens: Token[];
-  pointer: number;
-
-  constructor(tokens: Token[]) {
-    this.tokens = [...tokens];
-    this.pointer = 0;
-  }
-
-  next() {
-    let token = this.tokens[this.pointer];
-    this.pointer += 1;
-    return token;
-  }
-}
 
 export function LowerPriorityOperator(
-  pointer: number,
-  tokens: Token[]
-): [number, ParsingResult<TPlus | TMinus>] {
-  if (pointer >= tokens.length)
-    return [
-      pointer,
-      ParsingResult.fail("piotner cannot be larger than array length"),
-    ];
-  const [, minusResult] = SingleToken(TokenKind.Negate, pointer, tokens);
-  if (minusResult.isFailure) {
-    const [, plusResult] = SingleToken(TokenKind.Plus, pointer, tokens);
-    if (plusResult.isFailure)
-      return [pointer, ParsingResult.fail(plusResult.failureMsg)];
-    return [pointer + 1, ParsingResult.success<TPlus | TMinus>().define("+")];
-  }
-  return [pointer + 1, ParsingResult.success<TPlus | TMinus>().define("-")];
+  iter: TokenIterator
+): ParsingResult<TPlus | TMinus> {
+  let { Plus, Minus } = TokenKind;
+  return iter.oneOf(Plus, Minus);
 }
 
-export function Term(
-  pointer: number,
-  tokens: Token[]
-): [number, ParsingResult<TExpression>] {
-  let [i, r_factor] = Factor(pointer, tokens);
-  if (r_factor.isFailure)
-    return [pointer, ParsingResult.fail(r_factor.failureMsg)];
-  let [j, r_oper] = HigherPriorityOperator(i, tokens);
-  if (r_oper.isFailure) return [i, r_factor];
-  let [ptr3, r_term] = Term(j, tokens);
-  if (r_term.isFailure) return [j, r_term];
-  return [
-    ptr3,
-    ParsingResult.success<TExpression>().define({
+export function Term(iter: TokenIterator): ParsingResult<TExpression> {
+  return iter
+    .chain(Factor, HigherPriorityOperator, Term)
+    .release(([r_factor, r_oper, r_term]) => ({
       opType: "binary_operation",
       left: r_factor.build(),
       operator: r_oper.build(),
       right: r_term.build(),
-    }),
-  ];
+    }));
 }
 
 export function HigherPriorityOperator(
-  pointer: number,
-  tokens: Token[]
-): [number, ParsingResult<TMult | TDiv>] {
-  if (pointer >= tokens.length)
-    return [pointer, ParsingResult.fail("pointer cannot be larger than array")];
-  const [, multResult] = SingleToken(TokenKind.Mult, pointer, tokens);
-  if (multResult.isFailure) {
-    const [, divResult] = SingleToken(TokenKind.Div, pointer, tokens);
-    if (divResult.isFailure)
-      return [pointer, ParsingResult.fail(divResult.failureMsg)];
-    return [pointer + 1, ParsingResult.success<TMult | TDiv>().define("/")];
-  }
-  return [pointer + 1, ParsingResult.success<TMult | TDiv>().define("*")];
+  iter: TokenIterator
+): ParsingResult<TMult | TDiv> {
+  const { Mult, Div } = TokenKind;
+  return iter.oneOf(Mult, Div);
 }
 
-export function Factor(
-  pointer: number,
-  tokens: Token[]
-): [number, ParsingResult<TExpression>] {
-  let [ptr1, r_leftParen] = SingleToken(TokenKind.LeftParen, pointer, tokens);
-  if (!r_leftParen.isFailure) {
-    let [ptr2, r_exp] = BinaryExpression(ptr1, tokens);
-    let [ptr3, r_rparen] = SingleToken(TokenKind.RightParen, ptr2, tokens);
-    let [isFailure, failureMsg] = ParsingResult.and(r_exp, r_leftParen);
-    if (isFailure) return [ptr3, ParsingResult.fail(failureMsg)];
-    return [ptr3, ParsingResult.success<TExpression>().define(r_exp.build())];
-  }
-
-  let [ptrUnOp, r_unOp] = UnaryOperation(pointer, tokens);
-  if (!r_unOp.isFailure)
-    return [
-      ptrUnOp,
-      ParsingResult.success<TExpression>().define(r_unOp.build()),
-    ];
-
-  let [ptrValue, r_value] = Value(pointer, tokens);
-  if (!r_value.isFailure)
-    return [
-      ptrValue,
-      ParsingResult.success<TExpression>().define(r_value.build()),
-    ];
-
-  return [
-    pointer,
-    ParsingResult.fail(
-      `Expected a factor at ${pointer} but got ${tokens[pointer]}`
-    ),
-  ];
+function singleToken(
+  kind: TokenKind
+): (iter: TokenIterator) => ParsingResult<Token> {
+  return (iter: TokenIterator) => iter.single(kind);
 }
 
-export function Expression(
-  pointer: number,
-  tokens: Token[]
-): [number, ParsingResult<TExpression>] {
-  const [ptr_exp, r_exp] = BinaryExpression(pointer, tokens);
-  if (!r_exp.isFailure) return [ptr_exp, r_exp];
-  const [ptr_unOp, r_unOp] = UnaryOperation(pointer, tokens);
-  if (!r_exp.isFailure) return [ptr_unOp, r_unOp];
-  return Value(pointer, tokens);
-}
-export function UnaryOperation(
-  pointer: number,
-  tokens: Token[]
-): [number, ParsingResult<TUnaryOperation>] {
-  const [ptr2, r_unaryOperator] = UnaryOperator(pointer, tokens);
-  if (r_unaryOperator.isFailure) {
-    return [
-      ptr2,
-      ParsingResult.fail<TUnaryOperation>(
-        `Expected unaryOperator at position ${ptr2}, but got ${tokens[
-          ptr2
-        ].toString()}`
-      ),
-    ];
-  }
+export function Factor(iter: TokenIterator): ParsingResult<TExpression> {
+  let r_binaryExpression = iter
+    .chain(
+      singleToken(TokenKind.LeftParen),
+      BinaryExpression,
+      singleToken(TokenKind.RightParen)
+    )
+    .release(([r_exp]) => r_exp.build());
 
-  let [expPtr, r_exp] = Expression(ptr2, tokens);
-  return [
-    expPtr,
-    ParsingResult.success<TUnaryOperation>().define({
-      opType: "unary_operation",
-      operator: r_unaryOperator.build(),
+  if (!r_binaryExpression.isFailure) return r_binaryExpression;
+  let r_unOp = iter.chain(UnaryExpression).release(([r_unOp]) => r_unOp.build());
+
+  if (!r_unOp.isFailure) return r_unOp;
+
+  let r_val = iter.chain(Value).release(([r_val]) => r_val.build());
+
+  if (!r_val.isFailure) return r_val;
+
+  return r_binaryExpression; //return by deafult binary expression failed restul
+}
+
+export function UnaryExpression(
+  iter: TokenIterator
+): ParsingResult<TUnaryOperation> {
+  return iter
+    .chain(UnaryOperator, Expression)
+    .release(([r_unOperator, r_exp]) => ({
       operand: r_exp.build(),
-    }),
-  ];
+      operator: r_unOperator.build(),
+      opType: "unary_operation",
+    }));
 }
 
 export function UnaryOperator(
-  pointer: number,
-  tokens: Token[]
-): [number, ParsingResult<TUnaryOperator>] {
-  let [ptr1, r_unOp] = SingleToken(TokenKind.LogicalNegate, pointer, tokens);
-  if (r_unOp.isFailure) {
-    [, r_unOp] = SingleToken(TokenKind.Negate, pointer, tokens);
-    if (r_unOp.isFailure) {
-      [, r_unOp] = SingleToken(TokenKind.BitWiseComplement, pointer, tokens);
-      if (r_unOp.isFailure)
-        return [
-          pointer,
-          ParsingResult.fail<TUnaryOperator>(
-            `Expected unaryOperator at ${pointer} but got ${tokens[
-              pointer
-            ].toString()}`
-          ),
-        ];
-    }
-    return [
-      pointer + 1,
-      ParsingResult.success<TUnaryOperator>().define(
-        r_unOp.build().kind as TUnaryOperator
-      ),
-    ];
-  }
-  return [
-    ptr1,
-    ParsingResult.success<TUnaryOperator>().define(
-      r_unOp.build().kind as TUnaryOperator
-    ),
-  ];
+  iter: TokenIterator
+): ParsingResult<TUnaryOperator> {
+  return iter.oneOf(
+    TokenKind.Minus,
+    TokenKind.BitWiseComplement,
+    TokenKind.LogicalNegate
+  );
 }
 
-export function FunctionDef(
-  pointer: number,
-  tokens: Token[]
-): [number, ParsingResult<TFunction>] {
-  let [ptr1, r_typeReturn] = Type(pointer, tokens);
-  let [ptr2, r_funcIdent] = Identifier(ptr1, tokens);
-  let [ptr3, r_args] = Args(ptr2, tokens);
-  let [ptr4, r_leftCurly] = SingleToken(TokenKind.LeftCurly, ptr3, tokens);
-  let [isFailure1, failureMsg1] = ParsingResult.and(
-    r_typeReturn,
-    r_funcIdent,
-    r_args,
-    r_leftCurly
-  );
-  if (isFailure1) return [pointer, ParsingResult.fail(failureMsg1)]; //infers
-  const statements = [];
-  let statementPtr = ptr4;
-  let parsingResult;
-  while (true) {
-    let r = Statement(statementPtr, tokens);
-    statementPtr = r[0];
-    parsingResult = r[1];
-    if (parsingResult.isFailure) {
-      break;
-    } else {
-      statements.push(parsingResult);
-    }
-  }
-  const [ptr5, r_rightCurly] = SingleToken(
-    TokenKind.RightCurly,
-    statementPtr,
-    tokens
-  );
-
-  const [isFailure, failureMsg] = ParsingResult.and(
-    r_typeReturn,
-    r_funcIdent,
-    r_args,
-    r_leftCurly,
-    ...statements,
-    r_rightCurly
-  );
-  if (isFailure) {
-    return [pointer, ParsingResult.fail(failureMsg)];
-  } else {
-    return [
-      ptr5,
-      ParsingResult.success<TFunction>().define({
-        returnType: r_typeReturn.build(),
-        identifier: r_funcIdent.build(),
-        args: r_args.build(),
-        body: statements.map((s) => s.build()),
-      }),
-    ];
-  }
+export function Expression(iter: TokenIterator): ParsingResult<TExpression> {
+  return iter.oneOf(BinaryExpression, UnaryExpression, Value);
 }
 
-export function Args(
-  pointer: number,
-  tokens: Token[]
-): [number, ParsingResult<TArg[]>] {
-  const [newPtr, r_leftParen] = SingleToken(
-    TokenKind.LeftParen,
-    pointer,
-    tokens
-  );
-  const [newPtr2, matchingParen] = SingleToken(
-    TokenKind.RightParen,
-    newPtr,
-    tokens
-  );
-  if (!matchingParen.isFailure)
-    //function has no arguments;
-    return [newPtr2, ParsingResult.success<TArg[]>().define([])];
-
-  let argPtr = newPtr;
-  let argSet = [];
-  let r_rightParen;
-  while (true) {
-    let [newptr, r_arg] = Variable(argPtr, tokens);
-    let [newptr2, r_comma] = SingleToken(TokenKind.Comma, newptr, tokens);
-    if (r_comma.isFailure) {
-      let r_paren = SingleToken(TokenKind.RightParen, newptr, tokens);
-      let finalPtr = r_paren[0];
-      r_rightParen = r_paren[1];
-      if (!r_rightParen.isFailure) {
-        argSet.push(r_arg);
-        argPtr = finalPtr;
-        break;
-      } else
-        return [
-          argPtr,
-          ParsingResult.fail(
-            `Expected , or ) in argument list at ${newptr}, but found ${tokens[
-              newptr
-            ].toString()}`
-          ),
-        ];
-    } else argSet.push(r_arg);
-    argPtr = newptr2;
-  }
-
-  const [isFailure, failureMsg] = ParsingResult.and(
-    r_leftParen,
-    ...argSet,
-    r_rightParen
-  );
-  if (isFailure) {
-    return [pointer, ParsingResult.fail(failureMsg)];
-  } else {
-    return [
-      argPtr,
-      ParsingResult.success<TArg[]>().define(argSet.map((r) => r.build())),
-    ];
-  }
+export function FunctionDef(iter: TokenIterator): ParsingResult<TFunction> {
+  return iter
+    .chain(Type, Identifier, Args, FunctionBody)
+    .release(([r_typeReturn, r_funcIdent, r_args, r_body]) => ({
+      returnType: r_typeReturn.build(),
+      identifier: r_funcIdent.build(),
+      args: r_args.build(),
+      body: r_body.build(),
+    }));
 }
 
-export function Variable(
-  pointer: number,
-  tokens: Token[]
-): [number, ParsingResult<TVarDeclaration>] {
-  let [ptr1, r_type] = Type(pointer, tokens);
-  let [ptr2, r_varName] = Identifier(ptr1, tokens);
-  let [isFailure, failureMsg] = ParsingResult.and(r_type, r_varName);
-  if (isFailure) return [pointer, ParsingResult.fail(failureMsg)];
-  else
-    return [
-      ptr2,
-      ParsingResult.success<TVarDeclaration>().define({
-        type: r_type.build(),
-        identifier: r_varName.build(),
-      }),
-    ];
+export function FunctionBody(iter: TokenIterator): ParsingResult<TStatement[]> {
+  return iter
+    .chain(defuncFrom(TokenKind.LeftCurly))
+    .consumeUntil(
+      defuncFrom(TokenKind.RightCurly),
+      Statement,
+      defuncFrom(TokenKind.SemiColon)
+    )
+    .filterResults(1) //get only the argument and discard the comma
+    .release<TStatement[]>((statements) => statements.map((s) => s.build()));
 }
 
-export function Identifier(
-  pointer: number,
-  tokens: Token[]
-): [number, ParsingResult<TIdentifier>] {
-  let [ptr2, r_identifier] = SingleToken(TokenKind.Identifier, pointer, tokens);
-  let { value } = r_identifier.build();
-  if (!value)
-    throw new Error(
-      "Error (parser consistency): value cannot be null in this context"
-    );
-  let { isFailure, failureMsg } = r_identifier;
-  if (isFailure) return [pointer, ParsingResult.fail(failureMsg)];
-  else return [ptr2, ParsingResult.success<TIdentifier>().define(value)];
+export function Argument(iter: TokenIterator): ParsingResult<TArg> {
+  return iter.chain(Type, Identifier).release(([r_type, r_identifier]) => ({
+    type: r_type.build(),
+    identifier: r_identifier.build(),
+  }));
 }
 
-export function Type(
-  pointer: number,
-  tokens: Token[]
-): [number, ParsingResult<TType>] {
-  const [newptr, r_type] = SingleToken(TokenKind.Kw_Int, pointer, tokens);
-  let { value } = r_type.build();
-  if (r_type.isFailure) {
-    return [pointer, ParsingResult.fail(r_type.failureMsg)];
-  } else {
-    return [
-      newptr,
-      ParsingResult.success<TType>().define(value as TokenKind.Kw_Int),
-    ]; //casting here is the only option I can think of right now
-  }
+export function Args(iter: TokenIterator): ParsingResult<TArg[]> {
+  return iter
+    .chain(defuncFrom(TokenKind.LeftParen))
+    .consumeUntil(
+      defuncFrom(TokenKind.RightParen),
+      Argument,
+      defuncFrom(TokenKind.Comma)
+    )
+    .filterResults(1) //get only the argument and discard the comma
+    .release<TArg[]>((args) => args.map((a) => a.build()));
 }
 
-export function Statement(
-  pointer: number,
-  tokens: Token[]
-): [number, ParsingResult<TStatement>] {
-  let [newpointer, r_returnStatement] = ReturnStatement(pointer, tokens);
-  if (r_returnStatement.isFailure) return [pointer, r_returnStatement];
-  return [
-    newpointer,
-    ParsingResult.success<TStatement>().define(r_returnStatement.build()),
-  ];
+export function Identifier(iter: TokenIterator): ParsingResult<TIdentifier> {
+  return iter
+    .chain(defuncFrom(TokenKind.Identifier))
+    .release(([r_identifier]) => r_identifier.build());
+}
+
+export function Type(iter: TokenIterator): ParsingResult<TType> {
+  return iter
+    .chain(defuncFrom(TokenKind.Kw_Int))
+    .release(([r_kwInt]) => r_kwInt.build());
+}
+
+export function Statement(iter: TokenIterator): ParsingResult<TStatement> {
+  return iter
+    .chain(ReturnStatement)
+    .release(([r_returnStatement]) => r_returnStatement.build());
 }
 
 // export function Operand(
@@ -541,55 +309,26 @@ export function Statement(
 //     }
 // }
 
-export function Value(
-  pointer: number,
-  tokens: Token[]
-): [number, ParsingResult<TValue>] {
-  let [newpointer, r_value] = SingleToken(TokenKind.Lit_Int, pointer, tokens);
-  if (r_value.isFailure)
-    return [pointer, ParsingResult.fail<TValue>(r_value.failureMsg)];
-
-  let { value } = r_value.build();
-  if (!value)
-    throw new Error(
-      "Error (parser consistency): value cannot be null in this context"
-    );
-  if (r_value.isFailure)
-    return [pointer, ParsingResult.fail(r_value.failureMsg)];
-  else
-    return [
-      newpointer,
-      ParsingResult.success<TValue>().define(value as TValue),
-    ];
+export function LitInt(iter: TokenIterator): ParsingResult<TValue> {
+  return iter.expect(TokenKind.Kw_Int)
 }
+export function LitString(iter: TokenIterator): ParsingResult<TValue> {
+  throw new Error("Not supported yet");
+}
+
+export function Value(iter: TokenIterator): ParsingResult<TValue> {
+  return iter.oneOf(LitInt, LitString);
+}
+
 export function ReturnStatement(
-  pointer: number,
-  tokens: Token[]
-): [number, ParsingResult<TReturnStatement>] {
-  let [newpointer, r_return] = SingleToken(
-    TokenKind.Kw_Return,
-    pointer,
-    tokens
-  );
-  let [newpointer2, r_exp] = BinaryExpression(newpointer, tokens);
-  let [newpointer3, r_semicolon] = SingleToken(
-    TokenKind.SemiColon,
-    newpointer2,
-    tokens
-  );
-  const [isFailure, failureReason] = ParsingResult.and(
-    r_return,
-    r_exp,
-    r_semicolon
-  );
-  if (isFailure) return [pointer, ParsingResult.fail(failureReason)];
-  return [
-    newpointer3,
-    ParsingResult.success<TReturnStatement>().define({
-      statementType: TokenKind.Kw_Return,
+  iter: TokenIterator
+): ParsingResult<TReturnStatement> {
+  return iter
+    .chain(defuncFrom( TokenKind.Kw_Return ), Expression, defuncFrom( TokenKind.SemiColon ))
+    .release(([r_ret, r_exp]) => ({
+      statementType: r_ret.build(),
       returnValue: r_exp.build(),
-    }),
-  ];
+    }));
 }
 
 export function SingleToken(
