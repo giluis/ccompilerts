@@ -1,6 +1,6 @@
-import {Token,TokenKind} from "./lexer";
-import ParsingResult from "./parsingResult";
-import { Defunc } from "./grammar";
+import {Token,TokenKind} from "./lexer.ts";
+import ParsingResult from "./parsingResult.ts";
+import { Argument, Defunc } from "./grammar.ts";
 export default class TokenIterator {
   tokens: Token[];
   pointer: number;
@@ -30,6 +30,9 @@ export default class TokenIterator {
   pop() {
     const [pointer, chainedResults, chainedFailure, chainedFailureMsg] =
       this.popped;
+
+    if(!pointer || !chainedResults || !chainedFailure || !chainedFailureMsg)
+      throw new Error("Push/Pop was not performed correctly")
     this.pointer = pointer;
     this.chainedResults = chainedResults;
     this.chainedFailure = chainedFailure;
@@ -38,31 +41,13 @@ export default class TokenIterator {
     this.popped = [];
   }
 
-  oneOf<T>(...funcs: (Defunc<T> | TokenKind)[]): ParsingResult<T> {
-    let r_func: ParsingResult<T>;
-    let fn;
-    for (const e of funcs) {
-      if (typeof e === "function") {
-        fn = e as Defunc<T>;
-      } else {
-        fn = defuncFrom(e as TokenKind);
-      }
+  oneOf<T>(...funcs: (Defunc<T>)[]): ParsingResult<T> {
+    let r_func: ParsingResult<T> = ParsingResult.fail("Must pass funcs to One of");
+    for (const fn of funcs) {
       r_func = fn(this);
       if (!r_func.isFailure) return r_func;
     }
-    return ParsingResult.fail<T>(r_func.failureMsg);
-  }
-
-  single(kind: TokenKind): ParsingResult<Token> {
-    let token = this.next();
-    if (token.kind === kind)
-      return ParsingResult.success<Token>().define(token);
-    else
-      ParsingResult.fail(
-        `Expected ${kind} at position ${
-          this.pointer
-        }, but got ${token.toString()}`
-      );
+    return r_func;
   }
 
   release<T>(fn: (results: ParsingResult<any>[]) => T): ParsingResult<T> {
@@ -148,6 +133,15 @@ export default class TokenIterator {
 
   repeat(info:RepeatSpecs){
     const {separator, target, delimiters} = info;
+    this.chain(delimiters[0])
+    while(true){
+      if(this.isNext(delimiters[1]))
+        break
+      this.chain(target);
+      if(this.isNext(separator))
+        continue;
+    }
+    return this;
   }
 
 }
@@ -156,6 +150,12 @@ export default class TokenIterator {
     separator: Defunc<any>,
     target: Defunc<any>,
     delimiters: Defunc<any>[],
+  }
+
+  let o:RepeatSpecs = {
+    separator: defuncFrom(TokenKind.Comma),
+    target: Argument,
+    delimiters: [defuncFrom(TokenKind.LeftParen),defuncFrom(TokenKind.RightParen)],
   }
 
 export function defuncFrom<K extends TokenKind>(kind: K): Defunc<K> {

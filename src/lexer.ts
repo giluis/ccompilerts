@@ -54,7 +54,7 @@ export class Token{
         return `{kind:${this.kind},value:${this.value}}`;
     }
 
-    public static new(kind:TokenKind, value?: string):Token{
+    public static create(kind:TokenKind, value?: string):Token{
         switch(kind){
             case TokenKind.Kw_Int:
             case TokenKind.LeftParen:
@@ -86,12 +86,12 @@ export default function lex(source:string):Token[]{
     const tokens:Token[] = [];
                 
     while(position < size){
-        let currentChar = source[position];
+        const  currentChar = source[position];
         for( const [kind,regex] of MatchExpressions){
-            let stringslice = source.slice(position)
-            let match = stringslice.match(regex);
+            const stringslice = source.slice(position)
+            const match = stringslice.match(regex);
             if(match){
-                tokens.push(Token.new(kind,match[0]))
+                tokens.push(Token.create(kind,match[0]))
                 position += match[0].length;
                 break;
             }

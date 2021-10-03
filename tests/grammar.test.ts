@@ -1,43 +1,36 @@
 import {
-    SingleToken,
-    Args,
-    Variable,
-    Identifier,
-    ReturnStatement,
-    FunctionDef,
-    Statement,
-    UnaryOperation,
-Expression,
+  Expression,
 } from "../src/grammar.ts";
-import lex, { Token, TokenKind } from "../src/lexer.ts";
+import lex from "../src/lexer.ts";
 import { assert, assertEquals } from "../deps.ts";
-import ParsingResult from "../src/parsingResult.ts";
-import { parse } from "../src/parser.ts";
-import { TExpression, TProgram } from "../src/ebnf.ts";
+import { TExpression} from "../src/ebnf.ts";
+import TokenIterator from "../src/tokenIterator.ts";
 
+testPrecedence();
 
-testPrecedence()
+function testPrecedence() {
+  const tokens = lex("(2 - 1) * (2 + 1) - (1 * 1)");
+  const expected: TExpression = {
+    left: "1",
+    opType: "binary_operation",
+    operator: "+",
+    right: {
+      left: "1",
+      opType: "binary_operation",
+      operator: "-",
+      right: {
+        opType: "binary_operation",
+        left: "2",
+        operator: "*",
+        right: "3",
+      },
+    },
+  };
 
-function testPrecedence(){
-    const tokens = lex("(2 - 1) * (2 + 1) - (1 * 1)");
-    const expected:TExpression = {
-        left: "1",
-        operator: "+",
-        right: {
-            left:  "1",
-            operator: "-",
-            right: {
-                left:  "2",
-                operator: "*",
-                right:  "3",
-            },
-        },
-    }
-
-    const [, result ] = Expression(0,tokens);
-    assert(!result.isFailure)
-    const built = result.build();
-    assertEquals(built,expected);
+  const r_exp = Expression(new TokenIterator(tokens));
+  assert(!r_exp.isFailure);
+  const built = r_exp.build();
+  assertEquals(built, expected);
 }
 
 // function testExpression(){
@@ -234,4 +227,3 @@ function testPrecedence(){
 // }
 
 // testSingleToken();
-

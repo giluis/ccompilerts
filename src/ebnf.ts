@@ -1,4 +1,4 @@
-import { TokenKind } from "./lexer";
+import { TokenKind } from "./lexer.ts";
 
 export function isReturnStatement (o: any): o is TReturnStatement {
     return o?.statementType === TokenKind.Kw_Return && o.returnValue;
